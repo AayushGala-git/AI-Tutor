@@ -85,15 +85,6 @@ This project is licensed under the [MIT License](LICENSE). You are free to use, 
 
 ---
 
-## **Contact**
-
-For questions or suggestions, feel free to reach out:
-- **Author**: Aayush Gala
-- **GitHub**: [AayushGala-git](https://github.com/AayushGala-git/AI-Tutor)
-- **Email**: [your-email@example.com](mailto:your-email@example.com)
-
----
-
 ## **Steps to Clone and Run the Project**
 
 ### **Prerequisites**
