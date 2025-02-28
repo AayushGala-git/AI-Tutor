@@ -2,8 +2,8 @@ import streamlit as st
 import json
 import os
 from datetime import datetime, timedelta
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+import requests
+import time
 
 # Load and Save JSON Data
 def load_json(file_path):
@@ -89,15 +89,52 @@ def check_badges():
     progress["badges"] = badges
     save_json(progress, progress_file)
 
-# Hugging Face Model Initialization
-@st.cache_resource
-def load_hugging_face_model():
-    model_name = "Salesforce/codegen-350M-mono"  # Programming-specific model
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16)
-    return tokenizer, model
+# Initialize API key in session state if not present
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = None
 
-tokenizer, model = load_hugging_face_model()
+# Ollama Integration
+def get_ollama_response(question, api_key=None):
+    headers = {'Content-Type': 'application/json'}
+    if api_key:
+        headers['Authorization'] = f'Bearer {api_key}'
+    
+    prompt = (
+        "You are a Python programming tutor. Answer the following question with examples:\n\n"
+        f"{question}"
+    )
+    
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
+            response = requests.post(
+                'http://localhost:11434/api/generate',
+                json={
+                    'model': 'codellama',
+                    'prompt': prompt,
+                    'stream': False
+                },
+                headers=headers,
+                timeout=30  # Add timeout
+            )
+            if response.status_code == 200:
+                return response.json()['response']
+            else:
+                retry_count += 1
+                if retry_count == max_retries:
+                    return f"Error: Failed to get response from Ollama. Status code: {response.status_code}"
+                st.warning(f"Retrying... Attempt {retry_count} of {max_retries}")
+                time.sleep(1)  # Wait 1 second before retrying
+        except requests.exceptions.ConnectionError:
+            retry_count += 1
+            if retry_count == max_retries:
+                return "Error: Could not connect to Ollama. Please ensure Ollama is running (check if 'ollama serve' is running in terminal)"
+            st.warning(f"Connection failed. Retrying... Attempt {retry_count} of {max_retries}")
+            time.sleep(1)
+        except Exception as e:
+            return f"Error connecting to Ollama: {str(e)}"
 
 # Clean Response Function
 def clean_response(response):
@@ -278,10 +315,17 @@ elif menu == "Progress":
 # Chatbot Section
 elif menu == "Chatbot":
     st.header("AI Chatbot for Real-Time Q&A")
+    
+    # Add API key input in sidebar
+    with st.sidebar:
+        api_key = st.text_input("Enter API Key (optional):", type="password")
+        if api_key:
+            st.session_state.api_key = api_key
+    
     user_input = st.text_area("Ask your programming-related question here:")
     if st.button("Get Answer"):
         if user_input.strip():
-            response = get_hf_response(user_input)
+            response = get_ollama_response(user_input, st.session_state.api_key)
             st.write("**AI Response:**")
             st.write(response)
         else:
